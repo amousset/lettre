@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["email","Simple email (very incomplete)"],["transport","Represents an Email transport"]]});

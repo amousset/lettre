@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["error","Error and result type for SMTP clients"],["file","TODO"],["smtp","Sends an email using the client"],["stub","This transport is a stub that only logs the message, and always returns succes"]],"trait":[["EmailTransport","Transport method for emails"]]});

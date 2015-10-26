@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Mecanism","Represents authentication mecanisms"]]});
