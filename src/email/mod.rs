@@ -7,6 +7,8 @@ use email_format::{Address, Header, Mailbox, MimeMessage, MimeMultipartType};
 use mime::Mime;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::fs::File;
+use std::io::Read;
 use time::{Tm, now};
 use uuid::Uuid;
 
@@ -107,7 +109,6 @@ impl IntoEmail for SimpleEmail {
     }
 }
 
-
 /// Simple representation of an email, useful for some transports
 #[derive(PartialEq,Eq,Clone,Debug,Default)]
 pub struct SimpleEmail {
@@ -120,7 +121,7 @@ pub struct SimpleEmail {
     date: Option<Tm>,
     html: Option<String>,
     text: Option<String>,
-    // attachments: Vec<String>,
+    attachments: Vec<String>,
     headers: Vec<Header>,
 }
 
@@ -233,6 +234,17 @@ impl SimpleEmail {
     /// Sets the email body to HTML content
     pub fn set_html<S: Into<String>>(&mut self, body: S) {
         self.html = Some(body.into());
+    }
+
+    /// Adds an attachment to the message
+    pub fn attachment<S: Into<String>>(mut self, path: S) -> SimpleEmail {
+        self.add_attachment(path);
+        self
+    }
+
+    /// Adds an attachment to the message
+    pub fn add_attachment<S: Into<String>>(&mut self, path: S) {
+        self.attachments.push(path.into());
     }
 }
 
@@ -600,6 +612,39 @@ impl EmailBuilder {
 
         self.set_message_type(MimeMultipartType::Mixed);
         self.add_child(alternate.build());
+    }
+
+    /// Adds an attachment to the email
+    pub fn attachment(mut self, path: &str, filename: &str, content_type: &str) -> EmailBuilder {
+        self.set_attachment(path, filename, content_type);
+        self
+    }
+    /// Adds an attachment to the email
+    pub fn set_attachment(&mut self, path: &str, filename: &str, content_type: &str) {
+
+        let file = File::open(path);
+        let body = match file {
+            Ok(mut f) => {
+                let mut data = String::new();
+                let read = f.read_to_string(&mut data);
+                match read {
+                    Ok(_) => data,
+                    Err(e) => Err(From::from(e)),
+                }
+            }
+            Err(e) => {
+                return Err(From::from(e));
+            }
+        };
+
+        let content = PartBuilder::new()
+            .body(body)
+            .header(("Content-Disposition", format!("attachment; filename=\"{}\"", filename)))
+            .header(("Content-Type", content_type))
+            .build();
+
+        self.set_message_type(MimeMultipartType::Mixed);
+        self.add_child(content);
     }
 
     /// Sets the envelope for manual destination control
