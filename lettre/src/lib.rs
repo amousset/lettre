@@ -220,8 +220,10 @@ pub mod sendmail;
 pub mod stub;
 pub mod file;
 
+use std::io::Read;
+
 /// Email sendable by an SMTP client
-pub trait SendableEmail {
+pub trait SendableEmail<T: Read> {
     /// To
     fn to(&self) -> Vec<String>;
     /// From
@@ -229,13 +231,13 @@ pub trait SendableEmail {
     /// Message ID, used for logging
     fn message_id(&self) -> String;
     /// Message content
-    fn message(self) -> String;
+    fn message(self) -> T;
 }
 
 /// Transport method for emails
-pub trait EmailTransport<U> {
+pub trait EmailTransport<U, V: Read> {
     /// Sends the email
-    fn send<T: SendableEmail>(&mut self, email: T) -> U;
+    fn send<T: SendableEmail<V>>(&mut self, email: T) -> U;
     /// Close the transport explicitly
     fn close(&mut self);
 }
@@ -269,7 +271,7 @@ impl SimpleSendableEmail {
     }
 }
 
-impl SendableEmail for SimpleSendableEmail {
+impl<'a> SendableEmail<&'a[u8]> for SimpleSendableEmail {
     fn to(&self) -> Vec<String> {
         self.to.clone()
     }
@@ -282,7 +284,7 @@ impl SendableEmail for SimpleSendableEmail {
         self.message_id.clone()
     }
 
-    fn message(self) -> String {
-        self.message
+    fn message(self) -> &'a[u8] {
+        self.message.as_bytes()
     }
 }

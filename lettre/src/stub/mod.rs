@@ -3,6 +3,7 @@
 
 use EmailTransport;
 use SendableEmail;
+use std::io::Read;
 
 pub mod error;
 
@@ -13,8 +14,8 @@ pub struct StubEmailTransport;
 /// SMTP result type
 pub type StubResult = Result<(), error::Error>;
 
-impl EmailTransport<StubResult> for StubEmailTransport {
-    fn send<T: SendableEmail>(&mut self, email: T) -> StubResult {
+impl<U: Read> EmailTransport<StubResult, U> for StubEmailTransport {
+    fn send<T: SendableEmail<U>>(&mut self, email: T) -> StubResult {
 
         info!("{}: from=<{}> to=<{:?}>",
               email.message_id(),

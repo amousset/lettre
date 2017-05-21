@@ -7,6 +7,7 @@ use file::error::FileResult;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
+use std::io::Read;
 
 pub mod error;
 
@@ -25,8 +26,8 @@ impl FileEmailTransport {
     }
 }
 
-impl EmailTransport<FileResult> for FileEmailTransport {
-    fn send<T: SendableEmail>(&mut self, email: T) -> FileResult {
+impl<U: Read> EmailTransport<FileResult, U> for FileEmailTransport {
+    fn send<T: SendableEmail<U>>(&mut self, email: T) -> FileResult {
         let mut file = self.path.clone();
         file.push(format!("{}.txt", email.message_id()));
 

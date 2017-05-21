@@ -10,6 +10,7 @@ use smtp::extension::{Extension, ServerInfo};
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::string::String;
 use std::time::Duration;
+use std::io::Read;
 
 pub mod extension;
 pub mod authentication;
@@ -284,9 +285,9 @@ impl SmtpTransport {
     }
 }
 
-impl EmailTransport<SmtpResult> for SmtpTransport {
+impl<U: Read> EmailTransport<SmtpResult, U> for SmtpTransport {
     /// Sends an email
-    fn send<T: SendableEmail>(&mut self, email: T) -> SmtpResult {
+    fn send<T: SendableEmail<U>>(&mut self, email: T) -> SmtpResult {
 
         // Extract email information
         let message_id = email.message_id();
