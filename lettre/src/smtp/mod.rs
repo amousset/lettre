@@ -205,23 +205,9 @@ impl SmtpClient {
     }
 }
 
-/// Represents the state of a client
-#[derive(Debug)]
-struct State {
-    /// Panic state
-    pub panic: bool,
-    /// Connection reuse counter
-    pub connection_reuse_count: u16,
-}
-
 /// Structure that implements the high level SMTP client
 #[allow(missing_debug_implementations)]
 pub struct SmtpTransport {
-    /// Information about the server
-    /// Value is None before HELO/EHLO
-    server_info: Option<ServerInfo>,
-    /// SmtpTransport variable states
-    state: State,
     /// Information about the client
     client_info: SmtpClient,
     /// Low level client
@@ -233,8 +219,8 @@ macro_rules! try_smtp (
         match $err {
             Ok(val) => val,
             Err(err) => {
-                if !$client.state.panic {
-                    $client.state.panic = true;
+                if !$client.client.state.panic {
+                    $client.client.state.panic = true;
                     $client.close();
                 }
                 return Err(From::from(err))
@@ -252,22 +238,17 @@ impl<'a> SmtpTransport {
 
         SmtpTransport {
             client,
-            server_info: None,
             client_info: builder,
-            state: State {
-                panic: false,
-                connection_reuse_count: 0,
-            },
         }
     }
 
     fn connect(&mut self) -> Result<(), Error> {
         // Check if the connection is still available
-        if (self.state.connection_reuse_count > 0) && (!self.client.is_connected()) {
+        if (self.client.state.connection_reuse_count > 0) && (!self.client.is_connected()) {
             self.close();
         }
 
-        if self.state.connection_reuse_count > 0 {
+        if self.client.state.connection_reuse_count > 0 {
             info!(
                 "connection already established to {}",
                 self.client_info.server_addr
@@ -294,7 +275,8 @@ impl<'a> SmtpTransport {
 
         match (
             &self.client_info.security.clone(),
-            self.server_info
+            self.client
+                .server_info
                 .as_ref()
                 .unwrap()
                 .supports_feature(Extension::StartTls),
@@ -335,6 +317,7 @@ impl<'a> SmtpTransport {
 
                 for mechanism in accepted_mechanisms {
                     if self
+                        .client
                         .server_info
                         .as_ref()
                         .unwrap()
@@ -379,10 +362,10 @@ impl<'a> SmtpTransport {
             self
         );
 
-        self.server_info = Some(try_smtp!(ServerInfo::from_response(&ehlo_response), self));
+        self.client.server_info = Some(try_smtp!(ServerInfo::from_response(&ehlo_response), self));
 
         // Print server information
-        debug!("server {}", self.server_info.as_ref().unwrap());
+        debug!("server {}", self.client.server_info.as_ref().unwrap());
 
         Ok(ehlo_response)
     }
@@ -393,9 +376,9 @@ impl<'a> SmtpTransport {
         self.client.close();
 
         // Reset the client state
-        self.server_info = None;
-        self.state.panic = false;
-        self.state.connection_reuse_count = 0;
+        self.client.server_info = None;
+        self.client.state.panic = false;
+        self.client.state.connection_reuse_count = 0;
     }
 }
 
@@ -418,6 +401,7 @@ impl<'a> Transport<'a> for SmtpTransport {
         let mut mail_options = vec![];
 
         if self
+            .client
             .server_info
             .as_ref()
             .unwrap()
@@ -427,6 +411,7 @@ impl<'a> Transport<'a> for SmtpTransport {
         }
 
         if self
+            .client
             .server_info
             .as_ref()
             .unwrap()
@@ -473,13 +458,13 @@ impl<'a> Transport<'a> for SmtpTransport {
 
         if result.is_ok() {
             // Increment the connection reuse counter
-            self.state.connection_reuse_count += 1;
+            self.client.state.connection_reuse_count += 1;
 
             // Log the message
             info!(
                 "{}: conn_use={}, status=sent ({})",
                 message_id,
-                self.state.connection_reuse_count,
+                self.client.state.connection_reuse_count,
                 result
                     .as_ref()
                     .ok()
@@ -494,7 +479,7 @@ impl<'a> Transport<'a> for SmtpTransport {
         // Test if we can reuse the existing connection
         match self.client_info.connection_reuse {
             ConnectionReuseParameters::ReuseLimited(limit)
-                if self.state.connection_reuse_count >= limit =>
+                if self.client.state.connection_reuse_count >= limit =>
             {
                 self.close()
             }

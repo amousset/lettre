@@ -5,6 +5,7 @@ use crate::smtp::client::net::{ClientTlsParameters, Connector, NetworkStream, Ti
 use crate::smtp::commands::*;
 use crate::smtp::error::{Error, SmtpResult};
 use crate::smtp::response::Response;
+use crate::smtp::ServerInfo;
 use bufstream::BufStream;
 use log::debug;
 use std::fmt::{Debug, Display};
@@ -77,12 +78,26 @@ fn escape_crlf(string: &str) -> String {
     string.replace("\r\n", "<CRLF>")
 }
 
+/// Represents the state of a client
+#[derive(Copy, Clone, Debug, Default)]
+pub struct State {
+    /// Panic state
+    pub panic: bool,
+    /// Connection reuse counter
+    pub connection_reuse_count: u16,
+}
+
 /// Structure that implements the SMTP client
 #[derive(Debug, Default)]
 pub struct InnerClient<S: Write + Read = NetworkStream> {
     /// TCP stream between client and server
     /// Value is None before connection
     stream: Option<BufStream<S>>,
+    /// Information about the server
+    /// Value is `None` before EHLO
+    pub server_info: Option<ServerInfo>,
+    /// SmtpTransport variable states
+    pub state: State,
 }
 
 macro_rules! return_err (
@@ -96,7 +111,14 @@ impl<S: Write + Read> InnerClient<S> {
     ///
     /// It does not connects to the server, but only creates the `Client`
     pub fn new() -> InnerClient<S> {
-        InnerClient { stream: None }
+        InnerClient {
+            stream: None,
+            server_info: None,
+            state: State {
+                panic: false,
+                connection_reuse_count: 0,
+            },
+        }
     }
 }
 
