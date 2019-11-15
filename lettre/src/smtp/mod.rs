@@ -25,6 +25,7 @@ use crate::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParamet
 use crate::{SendableEmail, Transport};
 use log::{debug, info};
 use native_tls::TlsConnector;
+use std::cell::RefCell;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::Duration;
 
@@ -211,7 +212,7 @@ pub struct SmtpTransport {
     /// Information about the client
     client_info: SmtpClient,
     /// Low level client
-    client: InnerClient,
+    client: RefCell<InnerClient>,
 }
 
 macro_rules! try_smtp (
@@ -237,7 +238,7 @@ impl<'a> SmtpTransport {
         let client = InnerClient::new();
 
         SmtpTransport {
-            client,
+            client: RefCell::new(client),
             client_info: builder,
         }
     }
