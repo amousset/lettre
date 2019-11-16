@@ -1,8 +1,11 @@
 //! A trait to represent a stream
 
 use crate::smtp::client::mock::MockStream;
+#[cfg(feature = "native-tls")]
 use native_tls::{Protocol, TlsConnector, TlsStream};
-use std::io::{self, ErrorKind, Read, Write};
+#[cfg(feature = "native-tls")]
+use std::io::ErrorKind;
+use std::io::{self, Read, Write};
 use std::net::{Ipv4Addr, Shutdown, SocketAddr, SocketAddrV4, TcpStream};
 use std::time::Duration;
 
@@ -11,6 +14,7 @@ use std::time::Duration;
 #[allow(missing_debug_implementations)]
 pub struct ClientTlsParameters {
     /// A connector from `native-tls`
+    #[cfg(feature = "native-tls")]
     pub connector: TlsConnector,
     /// The domain to send during the TLS handshake
     pub domain: String,
@@ -18,6 +22,7 @@ pub struct ClientTlsParameters {
 
 impl ClientTlsParameters {
     /// Creates a `ClientTlsParameters`
+    #[cfg(feature = "native-tls")]
     pub fn new(domain: String, connector: TlsConnector) -> ClientTlsParameters {
         ClientTlsParameters { connector, domain }
     }
@@ -25,6 +30,7 @@ impl ClientTlsParameters {
 
 /// Accepted protocols by default.
 /// This removes TLS 1.0 and 1.1 compared to tls-native defaults.
+#[cfg(feature = "native-tls")]
 pub const DEFAULT_TLS_MIN_PROTOCOL: Protocol = Protocol::Tlsv12;
 
 #[derive(Debug)]
@@ -33,6 +39,7 @@ pub enum NetworkStream {
     /// Plain TCP stream
     Tcp(TcpStream),
     /// Encrypted TCP stream
+    #[cfg(feature = "native-tls")]
     Tls(TlsStream<TcpStream>),
     /// Mock stream
     Mock(MockStream),
@@ -43,6 +50,7 @@ impl NetworkStream {
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         match *self {
             NetworkStream::Tcp(ref s) => s.peer_addr(),
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(ref s) => s.get_ref().peer_addr(),
             NetworkStream::Mock(_) => Ok(SocketAddr::V4(SocketAddrV4::new(
                 Ipv4Addr::new(127, 0, 0, 1),
@@ -55,6 +63,7 @@ impl NetworkStream {
     pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         match *self {
             NetworkStream::Tcp(ref s) => s.shutdown(how),
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(ref s) => s.get_ref().shutdown(how),
             NetworkStream::Mock(_) => Ok(()),
         }
@@ -65,6 +74,7 @@ impl Read for NetworkStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match *self {
             NetworkStream::Tcp(ref mut s) => s.read(buf),
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(ref mut s) => s.read(buf),
             NetworkStream::Mock(ref mut s) => s.read(buf),
         }
@@ -75,6 +85,7 @@ impl Write for NetworkStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match *self {
             NetworkStream::Tcp(ref mut s) => s.write(buf),
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(ref mut s) => s.write(buf),
             NetworkStream::Mock(ref mut s) => s.write(buf),
         }
@@ -83,6 +94,7 @@ impl Write for NetworkStream {
     fn flush(&mut self) -> io::Result<()> {
         match *self {
             NetworkStream::Tcp(ref mut s) => s.flush(),
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(ref mut s) => s.flush(),
             NetworkStream::Mock(ref mut s) => s.flush(),
         }
@@ -92,18 +104,23 @@ impl Write for NetworkStream {
 /// A trait for the concept of opening a stream
 pub trait Connector: Sized {
     /// Opens a connection to the given IP socket
+    #[cfg(feature = "native-tls")]
     fn connect(
         addr: &SocketAddr,
         timeout: Option<Duration>,
         tls_parameters: Option<&ClientTlsParameters>,
     ) -> io::Result<Self>;
+    #[cfg(not(feature = "native-tls"))]
+    fn connect(addr: &SocketAddr, timeout: Option<Duration>) -> io::Result<Self>;
     /// Upgrades to TLS connection
+    #[cfg(feature = "native-tls")]
     fn upgrade_tls(&mut self, tls_parameters: &ClientTlsParameters) -> io::Result<()>;
     /// Is the NetworkStream encrypted
     fn is_encrypted(&self) -> bool;
 }
 
 impl Connector for NetworkStream {
+    #[cfg(feature = "native-tls")]
     fn connect(
         addr: &SocketAddr,
         timeout: Option<Duration>,
@@ -124,7 +141,16 @@ impl Connector for NetworkStream {
         }
     }
 
+    #[cfg(not(feature = "native-tls"))]
+    fn connect(addr: &SocketAddr, timeout: Option<Duration>) -> io::Result<NetworkStream> {
+        Ok(NetworkStream::Tcp(match timeout {
+            Some(duration) => TcpStream::connect_timeout(addr, duration)?,
+            None => TcpStream::connect(addr)?,
+        }))
+    }
+
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::match_same_arms))]
+    #[cfg(feature = "native-tls")]
     fn upgrade_tls(&mut self, tls_parameters: &ClientTlsParameters) -> io::Result<()> {
         *self = match *self {
             NetworkStream::Tcp(ref mut stream) => match tls_parameters
@@ -134,6 +160,7 @@ impl Connector for NetworkStream {
                 Ok(tls_stream) => NetworkStream::Tls(tls_stream),
                 Err(err) => return Err(io::Error::new(ErrorKind::Other, err)),
             },
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(_) => return Ok(()),
             NetworkStream::Mock(_) => return Ok(()),
         };
@@ -145,6 +172,7 @@ impl Connector for NetworkStream {
     fn is_encrypted(&self) -> bool {
         match *self {
             NetworkStream::Tcp(_) => false,
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(_) => true,
             NetworkStream::Mock(_) => false,
         }
@@ -163,6 +191,7 @@ impl Timeout for NetworkStream {
     fn set_read_timeout(&mut self, duration: Option<Duration>) -> io::Result<()> {
         match *self {
             NetworkStream::Tcp(ref mut stream) => stream.set_read_timeout(duration),
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(ref mut stream) => stream.get_ref().set_read_timeout(duration),
             NetworkStream::Mock(_) => Ok(()),
         }
@@ -172,6 +201,7 @@ impl Timeout for NetworkStream {
     fn set_write_timeout(&mut self, duration: Option<Duration>) -> io::Result<()> {
         match *self {
             NetworkStream::Tcp(ref mut stream) => stream.set_write_timeout(duration),
+            #[cfg(feature = "native-tls")]
             NetworkStream::Tls(ref mut stream) => stream.get_ref().set_write_timeout(duration),
             NetworkStream::Mock(_) => Ok(()),
         }

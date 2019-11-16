@@ -1,7 +1,9 @@
 //! SMTP client
 
 use crate::smtp::authentication::{Credentials, Mechanism};
-use crate::smtp::client::net::{ClientTlsParameters, Connector, NetworkStream, Timeout};
+#[cfg(feature = "native-tls")]
+use crate::smtp::client::net::ClientTlsParameters;
+use crate::smtp::client::net::{Connector, NetworkStream, Timeout};
 use crate::smtp::commands::*;
 use crate::smtp::error::{Error, SmtpResult};
 use crate::smtp::response::Response;
@@ -18,10 +20,7 @@ pub mod net;
 
 /// The codec used for transparency
 #[derive(Default, Clone, Copy, Debug)]
-#[cfg_attr(
-    feature = "serde-impls",
-    derive(serde::Serialize, serde::Deserialize)
-)]
+#[cfg_attr(feature = "serde-impls", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClientCodec {
     escape_count: u8,
 }
@@ -113,6 +112,7 @@ impl<S: Connector + Write + Read + Timeout + Debug> InnerClient<S> {
     }
 
     /// Upgrades the underlying connection to SSL/TLS
+    #[cfg(feature = "native-tls")]
     pub fn upgrade_tls_stream(&mut self, tls_parameters: &ClientTlsParameters) -> io::Result<()> {
         match self.stream {
             Some(ref mut stream) => stream.get_mut().upgrade_tls(tls_parameters),
@@ -138,6 +138,7 @@ impl<S: Connector + Write + Read + Timeout + Debug> InnerClient<S> {
     }
 
     /// Connects to the configured server
+    #[cfg(feature = "native-tls")]
     pub fn connect<A: ToSocketAddrs>(
         &mut self,
         addr: &A,
@@ -160,6 +161,33 @@ impl<S: Connector + Write + Read + Timeout + Debug> InnerClient<S> {
 
         // Try to connect
         self.set_stream(Connector::connect(&server_addr, timeout, tls_parameters)?);
+
+        Ok(())
+    }
+
+    #[cfg(not(feature = "native-tls"))]
+    pub fn connect<A: ToSocketAddrs>(
+        &mut self,
+        addr: &A,
+        timeout: Option<Duration>,
+    ) -> Result<(), Error> {
+        // Connect should not be called when the client is already connected
+        if self.stream.is_some() {
+            return_err!("The connection is already established", self);
+        }
+
+        let mut addresses = addr.to_socket_addrs()?;
+
+        let server_addr = match addresses.next() {
+            Some(addr) => addr,
+            None => return_err!("Could not resolve hostname", self),
+        };
+
+        debug!("connecting to {}", server_addr);
+
+        // Try to connect
+        self.set_stream(Connector::connect(&server_addr, timeout)?);
+
         Ok(())
     }
 

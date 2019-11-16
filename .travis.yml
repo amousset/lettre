@@ -24,6 +24,7 @@ before_script:
 - sudo chgrp -R postdrop /var/spool/postfix/maildrop
 script:
 - cargo test --verbose --all --all-features
+- cargo test --no-default-features --features=transport-smtp
 after_success:
 - ./.build-scripts/codecov.sh
 - '[ "$TRAVIS_RUST_VERSION" = "stable" ] && [ "$TRAVIS_BRANCH" = "v0.9.x" ] && [ $TRAVIS_PULL_REQUEST = false ] && ./.build-scripts/site-upload.sh'
