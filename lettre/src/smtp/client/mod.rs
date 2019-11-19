@@ -1,7 +1,6 @@
 //! SMTP client
 
 use crate::smtp::authentication::{Credentials, Mechanism};
-#[cfg(feature = "native-tls")]
 use crate::smtp::client::net::ClientTlsParameters;
 use crate::smtp::client::net::{Connector, NetworkStream, Timeout};
 use crate::smtp::commands::*;
@@ -77,7 +76,7 @@ fn escape_crlf(string: &str) -> String {
 }
 
 /// Structure that implements the SMTP client
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct InnerClient<S: Write + Read = NetworkStream> {
     /// TCP stream between client and server
     /// Value is None before connection
@@ -99,7 +98,7 @@ impl<S: Write + Read> InnerClient<S> {
     }
 }
 
-impl<S: Connector + Write + Read + Timeout + Debug> InnerClient<S> {
+impl<S: Connector + Write + Read + Timeout> InnerClient<S> {
     /// Closes the SMTP transaction if possible
     pub fn close(&mut self) {
         let _ = self.command(QuitCommand);
@@ -138,7 +137,6 @@ impl<S: Connector + Write + Read + Timeout + Debug> InnerClient<S> {
     }
 
     /// Connects to the configured server
-    #[cfg(feature = "native-tls")]
     pub fn connect<A: ToSocketAddrs>(
         &mut self,
         addr: &A,
@@ -161,32 +159,6 @@ impl<S: Connector + Write + Read + Timeout + Debug> InnerClient<S> {
 
         // Try to connect
         self.set_stream(Connector::connect(&server_addr, timeout, tls_parameters)?);
-
-        Ok(())
-    }
-
-    #[cfg(not(feature = "native-tls"))]
-    pub fn connect<A: ToSocketAddrs>(
-        &mut self,
-        addr: &A,
-        timeout: Option<Duration>,
-    ) -> Result<(), Error> {
-        // Connect should not be called when the client is already connected
-        if self.stream.is_some() {
-            return_err!("The connection is already established", self);
-        }
-
-        let mut addresses = addr.to_socket_addrs()?;
-
-        let server_addr = match addresses.next() {
-            Some(addr) => addr,
-            None => return_err!("Could not resolve hostname", self),
-        };
-
-        debug!("connecting to {}", server_addr);
-
-        // Try to connect
-        self.set_stream(Connector::connect(&server_addr, timeout)?);
 
         Ok(())
     }

@@ -219,7 +219,7 @@ struct State {
 #[allow(missing_debug_implementations)]
 pub struct SmtpTransport {
     /// Information about the server
-    /// Value is None before HELO/EHLO
+    /// Value is None before EHLO
     server_info: Option<ServerInfo>,
     /// SmtpTransport variable states
     state: State,
@@ -276,10 +276,6 @@ impl<'a> SmtpTransport {
             return Ok(());
         }
 
-        #[cfg(not(feature = "native-tls"))]
-        self.client
-            .connect(&self.client_info.server_addr, self.client_info.timeout)?;
-        #[cfg(feature = "native-tls")]
         self.client.connect(
             &self.client_info.server_addr,
             self.client_info.timeout,
@@ -321,6 +317,7 @@ impl<'a> SmtpTransport {
             }
             #[cfg(not(feature = "native-tls"))]
             (&ClientSecurity::Opportunistic(_), true) | (&ClientSecurity::Required(_), true) => {
+                // FIXME dedicated error variant
                 return Err(From::from("Encryption required but no TLS support enabled"));
             }
         }
