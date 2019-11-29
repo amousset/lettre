@@ -40,6 +40,8 @@ pub enum Error {
     Tls(native_tls::Error),
     /// Parsing error
     Parsing(nom::error::ErrorKind),
+    /// Invalid hostname
+    InvalidDNSName(webpki::InvalidDNSNameError),
 }
 
 impl Display for Error {
@@ -71,6 +73,7 @@ impl StdError for Error {
             #[cfg(feature = "native-tls")]
             Tls(ref err) => err.description(),
             Parsing(ref err) => err.description(),
+            InvalidDNSName(ref err) => err.description(),
         }
     }
 
@@ -118,6 +121,12 @@ impl From<DecodeError> for Error {
 impl From<FromUtf8Error> for Error {
     fn from(err: FromUtf8Error) -> Error {
         Utf8Parsing(err)
+    }
+}
+
+impl From<webpki::InvalidDNSNameError> for Error {
+    fn from(err: webpki::InvalidDNSNameError) -> Error {
+        InvalidDNSName(err)
     }
 }
 

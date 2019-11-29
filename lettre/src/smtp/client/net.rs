@@ -1,6 +1,7 @@
 //! A trait to represent a stream
 
 use crate::smtp::client::mock::MockStream;
+use crate::smtp::error::Error;
 #[cfg(feature = "native-tls")]
 use native_tls::{Protocol, TlsConnector, TlsStream};
 #[cfg(feature = "rustls")]
@@ -131,9 +132,9 @@ pub trait Connector: Sized {
         addr: &SocketAddr,
         timeout: Option<Duration>,
         tls_parameters: Option<&ClientTlsParameters>,
-    ) -> io::Result<Self>;
+    ) -> Result<Self, Error>;
     /// Upgrades to TLS connection
-    fn upgrade_tls(&mut self, tls_parameters: &ClientTlsParameters) -> io::Result<()>;
+    fn upgrade_tls(&mut self, tls_parameters: &ClientTlsParameters) -> Result<(), Error>;
     /// Is the NetworkStream encrypted
     fn is_encrypted(&self) -> bool;
 }
@@ -143,7 +144,7 @@ impl Connector for NetworkStream {
         addr: &SocketAddr,
         timeout: Option<Duration>,
         tls_parameters: Option<&ClientTlsParameters>,
-    ) -> io::Result<NetworkStream> {
+    ) -> Result<NetworkStream, Error> {
         let tcp_stream = match timeout {
             Some(duration) => TcpStream::connect_timeout(addr, duration)?,
             None => TcpStream::connect(addr)?,
@@ -158,8 +159,7 @@ impl Connector for NetworkStream {
                 .map_err(|e| io::Error::new(ErrorKind::Other, e)),
             #[cfg(feature = "rustls")]
             Some(context) => {
-                // FIXME unwrap
-                let domain = webpki::DNSNameRef::try_from_ascii_str(&context.domain).unwrap();
+                let domain = webpki::DNSNameRef::try_from_ascii_str(&context.domain)?;
 
                 Ok(NetworkStream::Tls(rustls::StreamOwned::new(
                     ClientSession::new(&Arc::new(context.connector.clone()), domain),
@@ -170,7 +170,7 @@ impl Connector for NetworkStream {
         }
     }
 
-    fn upgrade_tls(&mut self, tls_parameters: &ClientTlsParameters) -> io::Result<()> {
+    fn upgrade_tls(&mut self, tls_parameters: &ClientTlsParameters) -> Result<(), Error> {
         *self = match *self {
             #[cfg(feature = "native-tls")]
             NetworkStream::Tcp(ref mut stream) => match tls_parameters
@@ -182,9 +182,7 @@ impl Connector for NetworkStream {
             },
             #[cfg(feature = "rustls")]
             NetworkStream::Tcp(ref mut stream) => {
-                // FIXME unwrap
-                let domain =
-                    webpki::DNSNameRef::try_from_ascii_str(&tls_parameters.domain).unwrap();
+                let domain = webpki::DNSNameRef::try_from_ascii_str(&tls_parameters.domain)?;
 
                 NetworkStream::Tls(rustls::StreamOwned::new(
                     ClientSession::new(&Arc::new(tls_parameters.connector.clone()), domain),
