@@ -6,8 +6,10 @@ fn main() {
     let email = Email::builder()
         // Addresses can be specified by the tuple (email, alias)
         .to(("user@example.org", "Firstname Lastname"))
+        .unwrap()
         // ... or by an address only
         .from("user@example.com")
+        .unwrap()
         .subject("Hi, Hello world")
         .text("Hello world.")
         .attachment_from_file(Path::new("Cargo.toml"), None, &mime::TEXT_PLAIN)

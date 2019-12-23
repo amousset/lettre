@@ -26,7 +26,6 @@ pub mod stub;
 
 #[cfg(feature = "builder")]
 use crate::builder::EmailBuilder;
-use crate::error::EmailResult;
 use crate::error::Error;
 #[cfg(feature = "file-transport")]
 pub use crate::file::FileTransport;
@@ -38,7 +37,6 @@ pub use crate::smtp::client::net::ClientTlsParameters;
 pub use crate::smtp::r2d2::SmtpConnectionManager;
 #[cfg(feature = "smtp-transport")]
 pub use crate::smtp::{ClientSecurity, SmtpClient, SmtpTransport};
-use fast_chemail::is_valid_email;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
 use std::io;
@@ -52,15 +50,18 @@ use std::str::FromStr;
 pub struct EmailAddress(String);
 
 impl EmailAddress {
-    pub fn new(address: String) -> EmailResult<EmailAddress> {
-        if !EmailAddress::is_valid(&address) {
-            return Err(Error::InvalidEmailAddress);
+    pub fn new(address: String) -> Result<EmailAddress, Error> {
+        // Simple validation to avoid user error, we do not try to
+        // validate against RFCs here.
+        if !address.contains('@') {
+            Err(Error::EmailMissingAt)
+        } else if address.starts_with('@') {
+            Err(Error::EmailMissingLocalPart)
+        } else if address.ends_with('@') {
+            Err(Error::EmailMissingDomain)
+        } else {
+            Ok(EmailAddress(address))
         }
-        Ok(EmailAddress(address))
-    }
-
-    pub fn is_valid(addr: &str) -> bool {
-        is_valid_email(addr) || addr.ends_with("localhost")
     }
 
     pub fn into_inner(self) -> String {
@@ -110,7 +111,7 @@ pub struct Envelope {
 
 impl Envelope {
     /// Creates a new envelope, which may fail if `to` is empty.
-    pub fn new(from: Option<EmailAddress>, to: Vec<EmailAddress>) -> EmailResult<Envelope> {
+    pub fn new(from: Option<EmailAddress>, to: Vec<EmailAddress>) -> Result<Envelope, Error> {
         if to.is_empty() {
             return Err(Error::MissingTo);
         }
