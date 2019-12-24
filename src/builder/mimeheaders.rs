@@ -1,5 +1,4 @@
 use super::header::ToHeader;
-use super::results::ParsingResult;
 use std::collections::HashMap;
 
 /// Content-Type string, major/minor as the first and second elements
@@ -15,12 +14,12 @@ pub struct MimeContentTypeHeader {
 }
 
 impl ToHeader for MimeContentTypeHeader {
-    fn to_header(value: MimeContentTypeHeader) -> ParsingResult<String> {
+    fn to_header(value: MimeContentTypeHeader) -> String {
         let (mime_major, mime_minor) = value.content_type;
         let mut result = format!("{}/{}", mime_major, mime_minor);
         for (key, val) in value.params.iter() {
             result = format!("{}; {}={}", result, key, val);
         }
-        Ok(result)
+        result
     }
 }

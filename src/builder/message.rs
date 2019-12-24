@@ -107,8 +107,10 @@ impl MimeMessage {
                 content_type: message_type.to_content_type(),
                 params: params,
             };
-            self.headers
-                .insert(Header::new_with_value("Content-Type".to_string(), ct_header).unwrap());
+            self.headers.insert(Header::new_with_value(
+                "Content-Type".to_string(),
+                ct_header,
+            ));
         }
     }
 
@@ -125,7 +127,7 @@ impl MimeMessage {
     }
 
     fn as_string_without_headers_internal(&self, mut builder: Rfc5322Builder) -> String {
-        builder.emit_raw(&format!("{}\r\n", self.body)[..]);
+        builder.emit_folded(&format!("{}\r\n", self.body)[..]);
 
         if self.children.len() > 0 {
             for part in self.children.iter() {

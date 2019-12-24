@@ -1,7 +1,10 @@
 use std::convert::TryFrom;
 use std::fmt;
 
-use crate::builder::{header::ToFoldedHeader, results::ParsingResult, rfc5322::MIME_LINE_LENGTH};
+use crate::builder::{
+    header::{Header, ToFoldedHeader},
+    rfc5322::MIME_LINE_LENGTH,
+};
 use crate::{error::Error, EmailAddress};
 
 /// Represents an RFC 5322 mailbox
@@ -40,8 +43,14 @@ impl From<EmailAddress> for Mailbox {
 impl fmt::Display for Mailbox {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self.name {
-            // FIXME: do not always quote, this breaks encoding
-            Some(ref name) => write!(fmt, "\"{}\" <{}>", name, self.address),
+            Some(ref name) => {
+                // FIXME do not always quote
+                if name.is_ascii() {
+                    write!(fmt, "\"{}\" <{}>", name, self.address)
+                } else {
+                    write!(fmt, "{} <{}>", Header::encode_rfc2047(name), self.address)
+                }
+            }
             None => write!(fmt, "<{}>", self.address),
         }
     }
@@ -76,7 +85,7 @@ impl<S: Into<String>, T: Into<String>> TryFrom<(S, T)> for Mailbox {
 }
 
 impl ToFoldedHeader for Vec<Mailbox> {
-    fn to_folded_header(start_pos: usize, value: Vec<Mailbox>) -> ParsingResult<String> {
+    fn to_folded_header(start_pos: usize, value: Vec<Mailbox>) -> String {
         let mut header = String::new();
 
         let mut line_len = start_pos;
@@ -97,7 +106,7 @@ impl ToFoldedHeader for Vec<Mailbox> {
         let real_len = header.len() - 2;
         header.truncate(real_len);
 
-        Ok(header)
+        header
     }
 }
 
@@ -131,7 +140,7 @@ mod tests {
             .unwrap(),
         ];
 
-        let header = Header::new_with_value("To".to_string(), addresses).unwrap();
+        let header = Header::new_with_value("To".to_string(), addresses);
         assert_eq!(
             &header.to_string()[..],
             "To: \"Joe Blogs\" <joe@example.org>, \"John Doe\" <john@example.org>, \r\n\

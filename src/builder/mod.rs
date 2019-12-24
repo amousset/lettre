@@ -17,7 +17,6 @@ mod address;
 mod header;
 mod message;
 mod mimeheaders;
-mod results;
 mod rfc5322;
 
 const DT_RFC822Z: &str = "%a, %d %b %Y %T %z";
@@ -216,10 +215,11 @@ impl EmailBuilder {
 
     /// Adds a `Subject` header
     pub fn subject<S: Into<String>>(mut self, subject: S) -> EmailBuilder {
+        let subject = subject.into();
         self.message = self.message.header((
             "Subject".to_string(),
-            //encode_rfc2047(subject.into().as_ref()),
-            subject.into(),
+            // FIXME do not always encode
+            Header::encode_rfc2047(subject.as_ref()),
         ));
         self
     }
@@ -396,39 +396,41 @@ impl EmailBuilder {
         if !self.to.is_empty() {
             self.message = self
                 .message
-                .header(Header::new_with_value("To".into(), self.to).unwrap());
+                .header(Header::new_with_value("To".into(), self.to));
         }
         if !self.from.is_empty() {
             self.message = self
                 .message
-                .header(Header::new_with_value("From".into(), self.from).unwrap());
+                .header(Header::new_with_value("From".into(), self.from));
         } else if let Some(from) = envelope.from() {
             let from = vec![Mailbox::try_from(from.to_string()).unwrap()];
             self.message = self
                 .message
-                .header(Header::new_with_value("From".into(), from).unwrap());
+                .header(Header::new_with_value("From".into(), from));
         } else {
             return Err(Error::MissingFrom);
         }
         if !self.cc.is_empty() {
             self.message = self
                 .message
-                .header(Header::new_with_value("Cc".into(), self.cc).unwrap());
+                .header(Header::new_with_value("Cc".into(), self.cc));
         }
         if !self.reply_to.is_empty() {
             self.message = self
                 .message
-                .header(Header::new_with_value("Reply-To".into(), self.reply_to).unwrap());
+                .header(Header::new_with_value("Reply-To".into(), self.reply_to));
         }
         if !self.in_reply_to.is_empty() {
-            self.message = self.message.header(
-                Header::new_with_value("In-Reply-To".into(), self.in_reply_to.join(" ")).unwrap(),
-            );
+            self.message = self.message.header(Header::new_with_value(
+                "In-Reply-To".into(),
+                self.in_reply_to.join(" "),
+            ));
         }
         if !self.references.is_empty() {
-            self.message = self.message.header(
-                Header::new_with_value("References".into(), self.references.join(" ")).unwrap(),
-            );
+            self.message = self.message.header(Header::new_with_value(
+                "References".into(),
+                self.references.join(" "),
+            ));
         }
 
         if !self.date_issued {
