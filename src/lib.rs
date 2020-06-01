@@ -155,6 +155,7 @@ pub trait Transport {
 pub mod r#async {
 
     use super::*;
+    use async_std::io::BufRead;
     use async_trait::async_trait;
 
     #[async_trait]
@@ -176,6 +177,14 @@ pub mod r#async {
             &self,
             envelope: &Envelope,
             email: &[u8],
+        ) -> Result<Self::Ok, Self::Error> {
+            self.send_reader(&envelope, email).await
+        }
+
+        async fn send_reader<R: BufRead + Unpin + Send + Sync + 'static>(
+            &self,
+            envelope: &Envelope,
+            reader: R,
         ) -> Result<Self::Ok, Self::Error>;
     }
 }

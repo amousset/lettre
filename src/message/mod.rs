@@ -198,6 +198,10 @@ use uuid::Uuid;
 
 const DEFAULT_MESSAGE_ID_DOMAIN: &str = "localhost";
 
+// async_std::io::BufRead
+// R: BufRead + Unpin + Send + Sync + 'static,
+// https://docs.rs/surf/2.0.0-alpha.3/surf/struct.Request.html#method.body
+
 pub trait EmailFormat {
     // Use a writer?
     fn format(&self, out: &mut Vec<u8>);

@@ -78,6 +78,7 @@ impl Transport for StubTransport {
 pub mod r#async {
     use super::StubTransport;
     use crate::{r#async::Transport, transport::stub::Error, Envelope};
+    use async_std::io::BufRead;
     use async_trait::async_trait;
 
     #[async_trait]
@@ -85,10 +86,10 @@ pub mod r#async {
         type Ok = ();
         type Error = Error;
 
-        async fn send_raw(
+        async fn send_reader<R: BufRead + Unpin + Send + Sync + 'static>(
             &self,
-            _envelope: &Envelope,
-            _email: &[u8],
+            envelope: &Envelope,
+            reader: R,
         ) -> Result<Self::Ok, Self::Error> {
             self.response
         }

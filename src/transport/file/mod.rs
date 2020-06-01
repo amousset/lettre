@@ -103,8 +103,7 @@ impl Transport for FileTransport {
 pub mod r#async {
     use super::{FileTransport, Id, SerializableEmail};
     use crate::{r#async::Transport, transport::file::error::Error, Envelope};
-    use async_std::fs::File;
-    use async_std::prelude::*;
+    use async_std::{fs::File, io::BufRead, prelude::*};
     use async_trait::async_trait;
     use std::str;
     use uuid::Uuid;
@@ -114,15 +113,19 @@ pub mod r#async {
         type Ok = Id;
         type Error = Error;
 
-        async fn send_raw(
+        async fn send_reader<R: BufRead + Unpin + Send + Sync + 'static>(
             &self,
             envelope: &Envelope,
-            email: &[u8],
+            email: R,
         ) -> Result<Self::Ok, Self::Error> {
             let email_id = Uuid::new_v4();
             let file = self.path.join(format!("{}.json", email_id));
 
-            let serialized = match str::from_utf8(email) {
+            let mut r_email = vec![];
+            email.read_to_end(&mut r_email).await?;
+            let email = r_email;
+
+            let serialized = match str::from_utf8(&email) {
                 // Serialize as UTF-8 string if possible
                 Ok(m) => serde_json::to_string(&SerializableEmail {
                     envelope: envelope.clone(),

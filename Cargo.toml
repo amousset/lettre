@@ -10,6 +10,7 @@ authors = ["Alexis Mousset <contact@amousset.me>", "Kayo <kayo@illumium.org>"]
 categories = ["email", "network-programming"]
 keywords = ["email", "smtp", "mailer", "message", "sendmail"]
 edition = "2018"
+include = ["src/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
 
 [badges]
 is-it-maintained-issue-resolution = { repository = "lettre/lettre" }
