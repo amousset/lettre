@@ -3,6 +3,8 @@ use crate::message::{
     header::{ContentTransferEncoding, ContentType, Header, Headers},
     EmailFormat,
 };
+#[cfg(feature = "async")]
+use async_std::io::BufRead;
 use mime::Mime;
 use textnonce::TextNonce;
 
@@ -75,11 +77,49 @@ impl SinglePartBuilder {
             body: body.into(),
         }
     }
+    /*
+    #[cfg(feature = "async")]
+    /// Build singlepart using body
+    pub fn body_reader<R: BufRead + Unpin + Send + Sync + 'static>(self, body: R) -> SinglePart {
+        SinglePart {
+            headers: self.headers,
+            body: Body::Reader(Box::new(body.into())),
+        }
+    }*/
 }
 
 impl Default for SinglePartBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(feature = "async")]
+mod truc {
+    use async_std::io;
+    use async_std::io::BufRead;
+    use async_std::task::Context;
+    use async_std::task::Poll;
+    use pin_project::pin_project;
+    use std::pin::Pin;
+
+    #[pin_project]
+    #[derive(Debug, Clone)]
+    enum Body {
+        Reader(Box<dyn BufRead + Unpin + Send + Sync + 'static>),
+        Buf(Vec<u8>),
+    }
+
+    impl BufRead for Body {
+        #[allow(missing_doc_code_examples)]
+        fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&'_ [u8]>> {
+            let this = self.project();
+            this.body.poll_fill_buf(cx)
+        }
+
+        fn consume(mut self: Pin<&mut Self>, amt: usize) {
+            Pin::new(&mut self.body).consume(amt)
+        }
     }
 }
 
@@ -143,6 +183,7 @@ impl SinglePart {
         Self::builder().header(ContentTransferEncoding::Binary)
     }
 
+    /// FIXME AsRef
     /// Get the headers from singlepart
     pub fn headers(&self) -> &Headers {
         &self.headers
